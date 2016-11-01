@@ -1003,10 +1003,56 @@ def innerLoop(jobStore, config, batchSystem, toilState, jobBatcher, serviceManag
 
     logger.info("Finished the main loop")
 
+    def getAllChildren(jobWrapper):
+        if jobWrapper.stack[-1]:
+            return [jobWrapper.jobStoreID] + map(getAllChildren,
+                       map(lambda x: jobStore.load(x[0]), jobWrapper.stack[-1])
+                       )
+        else:
+            return jobWrapper.jobStoreID
+
+    def flatten(potentiallyNestedList):
+        if not potentiallyNestedList:
+            return potentiallyNestedList
+        if isinstance(potentiallyNestedList[0], list):
+            return flatten(potentiallyNestedList[0]) + flatten(potentiallyNestedList[1:])
+        return potentiallyNestedList[:1] + flatten(potentiallyNestedList[1:])
+
     # Consistency check the toil state
+
+    # these new checks are designed for the case where a DAG is scheduled
+    # with the root job scheduling jobs A and B as children. Job A also
+    # schedules B as a child. This results in a case where B is considered
+    # a successor to the root job but cannot yet be run, since it also needs A
+    # to finish. The Toil state class cannot easily track this
+    issuingJobs = {predecessor.jobStoreID for predecessorList in
+                   toilState.successorJobStoreIDToPredecessorJobs.itervalues()
+                   for predecessor in predecessorList}
+    issuingJobs2 = {jobStoreID for jobStoreID in toilState.successorCounts.keys()}
+    # check that all jobs with non-issued successors are properly tracked in
+    # both successorJobStoreIDToPredecessorJobs and successorCounts
+    assert issuingJobs == issuingJobs2
+    if issuingJobs:
+        successorIDs = {jobID for jobID in toilState.successorJobStoreIDToPredecessorJobs.keys()}
+        for jobStoreID in toilState.successorCounts:
+            jobWrapper = jobStore.load(jobStoreID)
+            # there must be multiple children in the stack since
+            # it has the non-issued successor and
+            assert len(jobWrapper.stack[-1]) > 1
+            childIDs = {jobTuple[0] for jobTuple in jobWrapper.stack[-1]}
+            assert childIDs.intersection(successorIDs) != {}
+            # remove the non-issued successor job so it is no longer
+            # a direct successor of its finished predecessor
+            jobWrapper.stack[-1] = [(childID, None) for childID in
+                                     childIDs.difference(successorIDs)]
+            childJobs = flatten(getAllChildren(jobWrapper))
+            logger.error(childJobs)
+            logger.error(successorIDs)
+            assert successorIDs.issubset(set(childJobs)) != {}
+    # check that all jobs with non-issued successors have failed
+    # successors. We expect that one of this job's failed
+    # successors is also the parent of this job's non-issued successor
+    assert issuingJobs.issubset(toilState.hasFailedSuccessors)
     assert toilState.updatedJobs == set()
-    assert toilState.successorCounts == {}
-    assert toilState.successorJobStoreIDToPredecessorJobs == {}
     assert toilState.serviceJobStoreIDToPredecessorJob == {}
     assert toilState.servicesIssued == {}
-    # assert toilState.hasFailedSuccessors == set() # These are not properly emptied yet
