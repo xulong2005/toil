@@ -1005,8 +1005,8 @@ def innerLoop(jobStore, config, batchSystem, toilState, jobBatcher, serviceManag
 
     # Consistency check the toil state
     assert toilState.updatedJobs == set()
-    assert toilState.successorCounts == {}
-    assert toilState.successorJobStoreIDToPredecessorJobs == {}
+    # assert toilState.successorCounts == {}
+    # assert toilState.successorJobStoreIDToPredecessorJobs == {}
     assert toilState.serviceJobStoreIDToPredecessorJob == {}
     assert toilState.servicesIssued == {}
     # assert toilState.hasFailedSuccessors == set() # These are not properly emptied yet
