@@ -16,8 +16,10 @@ import unittest
 import os
 import random
 
+from toil.common import Toil
+from toil.leader import FailedJobsException
 from toil.lib.bioio import getTempFile
-from toil.job import Job, JobGraphDeadlockException
+from toil.job import Job, JobGraphDeadlockException, JobFunctionWrappingJob
 from toil.test import ToilTest
 
 
@@ -423,6 +425,30 @@ class JobTest(ToilTest):
                 return False
         return True
 
+    def testTrivialDAGConsistency(self):
+        options = Job.Runner.getDefaultOptions(self._createTempDir() + '/jobStore')
+        options.clean = 'always'
+        i = Job.wrapJobFn(trivialParent)
+        with Toil(options) as toil:
+            try:
+                toil.start(i)
+            except Exception as e:
+                assert isinstance(e, FailedJobsException)
+            else:
+                self.fail()
+
+    def testDAGConsistency(self):
+        options = Job.Runner.getDefaultOptions(self._createTempDir() + '/jobStore')
+        options.clean = 'always'
+        i = Job.wrapJobFn(parent)
+        with Toil(options) as toil:
+            try:
+                toil.start(i)
+            except Exception as e:
+                assert isinstance(e, FailedJobsException)
+            else:
+                self.fail()
+
 
 def fn1Test(string, outputFile):
     """
@@ -444,6 +470,34 @@ def fn2Test(pStrings, s, outputFile):
     with open(outputFile, 'w') as fH:
         fH.write(" ".join(pStrings) + " " + s)
     return s
+
+
+def trivialParent(job):
+    strandedJob = JobFunctionWrappingJob(child)
+    failingJob = JobFunctionWrappingJob(errorChild)
+
+    job.addChild(failingJob)
+    job.addChild(strandedJob)
+    failingJob.addChild(strandedJob)
+
+
+def parent(job):
+    childJob = JobFunctionWrappingJob(child)
+    strandedJob = JobFunctionWrappingJob(child)
+    failingJob = JobFunctionWrappingJob(errorChild)
+
+    job.addChild(childJob)
+    job.addChild(strandedJob)
+    childJob.addChild(failingJob)
+    failingJob.addChild(strandedJob)
+
+
+def child(job):
+    pass
+
+
+def errorChild(job):
+    raise RuntimeError('Child failure')
 
 
 if __name__ == '__main__':

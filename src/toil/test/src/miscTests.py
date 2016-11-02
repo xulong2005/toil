@@ -13,10 +13,6 @@
 # limitations under the License.
 
 from __future__ import absolute_import, print_function
-
-from toil.common import Toil
-from toil.job import JobFunctionWrappingJob, Job
-from toil.leader import FailedJobsException
 from toil.test import ToilTest
 from uuid import uuid4
 
@@ -88,58 +84,4 @@ class MiscTests(ToilTest):
     @staticmethod
     def _getRandomName():
         return uuid4().hex
-
-    def testTrivialDAGConsistency(self):
-        options = Job.Runner.getDefaultOptions(self._createTempDir()+'/jobStore')
-        options.clean = 'always'
-        i = Job.wrapJobFn(trivialParent)
-        with Toil(options) as toil:
-            try:
-                toil.start(i)
-            except Exception as e:
-                assert isinstance(e, FailedJobsException)
-            else:
-                self.fail()
-
-    def testDAGConsistency(self):
-        options = Job.Runner.getDefaultOptions(self._createTempDir()+'/jobStore')
-        options.clean = 'always'
-        i = Job.wrapJobFn(parent)
-        with Toil(options) as toil:
-            try:
-                toil.start(i)
-            except Exception as e:
-                assert isinstance(e, FailedJobsException)
-            else:
-                self.fail()
-
-
-def trivialParent(job):
-    strandedJob = JobFunctionWrappingJob(child)
-    failingJob = JobFunctionWrappingJob(errorChild)
-
-    job.addChild(failingJob)
-    job.addChild(strandedJob)
-    failingJob.addChild(strandedJob)
-
-
-def parent(job):
-    childJob = JobFunctionWrappingJob(child)
-    strandedJob = JobFunctionWrappingJob(child)
-    failingJob = JobFunctionWrappingJob(errorChild)
-
-    job.addChild(childJob)
-    job.addChild(strandedJob)
-    childJob.addChild(failingJob)
-    failingJob.addChild(strandedJob)
-
-
-def child(job):
-    pass
-
-
-def errorChild(job):
-    raise RuntimeError('Child failure')
-
-
 
