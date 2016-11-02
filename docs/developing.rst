@@ -373,6 +373,93 @@ workflow, with jobs defined within a job or job function being created at
 run time.
 
 
+Developing pipelines with toil-lib
+----------------------------------
+
+`toil-lib`_ provides many functions and job functions that are useful in
+developing pipelines in Toil. Installation instructions for toil-lib are
+available `here`_.
+
+.. _toil-lib: https://github.com/BD2KGenomics/toil-lib
+
+.. _here: https://github.com/BD2KGenomics/toil-lib/blob/master/docs/installation.rst
+
+toil-lib packages and functions can be imported to a Toil pipeline like any
+Python package. Jobs from toil-lib can then be added to workflows statically or
+dynamically. For example::
+
+    from toil.job import Job
+    from toil_lib.urls import download_url
+
+    def helloWorld(job, message, memory="2G", cores=2, disk="3G"):
+        job.fileStore.logToMaster("Hello world, "
+        "I have a message: %s" % message) # This uses a logging function
+        # of the Job.FileStore class
+
+    j1 = Job.wrapJobFn(download_url, "https://sample.url")
+    j2 = j1.addChildJobFn(helloWorld, "second or third")
+    j3 = j1.addChildJobFn(helloWorld, "second or third")
+    j4 = j2.addChildJobFn(helloWorld, "last")
+    j3.addChild(j4)
+
+    if __name__=="__main__":
+        options = Job.Runner.getDefaultOptions("./toilWorkflowRun")
+        options.logLevel = "INFO"
+        Job.Runner.startToil(j1, options)
+
+or::
+
+    from toil.job import Job
+    from toil_lib.urls import download_url
+    
+    def binaryStringFn(job, message="", depth):
+        if depth > 0:
+            job.addChildJobFn(binaryStringFn, message + "0", depth-1)
+            job.addChildJobFn(binaryStringFn, message + "1", depth-1)
+        else:
+            job.fileStore.logToMaster("Binary string: %s" % message)
+            job.addChildJobFn(download_url, "https://sample.url")
+    
+    if __name__=="__main__":
+        options = Job.Runner.getDefaultOptions("./toilWorkflowRun")
+        options.logLevel = "INFO"
+        Job.Runner.startToil(Job.wrapJobFn(binaryStringFn, depth=5), options)
+
+
+
+Using Docker containers in Toil
+-------------------------------
+
+Docker containers are commonly used with Toil to maintain the portability of
+workflows. In order to use Docker containers with Toil, Docker must be installed
+on all workers of a cluster in order to run a workflow containing Docker containers.
+Instructions for installing Docker can be found on the `Docker`_ website.
+
+.. _Docker: https://docs.docker.com/engine/getstarted/step_one/
+
+`cgl-docker-lib`_ contains Toil-compatible Dockerized tools that are commonly
+used in bioinformatics analysis, as well as documentation on how to develop
+your own Toil-compatible Docker containers.
+
+.. _cgl-docker-lib: https://github.com/BD2KGenomics/cgl-docker-lib/blob/master/README.md
+
+``toil-lib.programs`` provides ``docker_call``, a job function for use in Toil-workflows.
+``docker_call`` is an improvement over using the ``subprocess`` module to call Docker directly,
+as it provides:
+
+- container cleanup on job failure
+- ability to test workflows in 'mock mode', which runs the workflow without invoking Dockerized
+tools 
+
+Documentation for ``docker_call`` can be found in `toil-lib`_. In order to use ``docker_call``,
+your installation of Docker must be set up to run without ``sudo``. Instructions for setting
+this up can be found here_.
+
+.. _toil-lib: https://github.com/BD2KGenomics/toil-lib/blob/master/docs/docker.rst
+
+.. _here: https://docs.docker.com/engine/installation/linux/ubuntulinux/#/create-a-docker-group
+
+
 Promises
 --------
 
@@ -397,7 +484,7 @@ the following example::
         options = Job.Runner.getDefaultOptions("./toilWorkflowRun")
         options.logLevel = "INFO"
         Job.Runner.startToil(j1, options)
-    
+
 Running this workflow results in three log messages from the jobs: ``i is 1``
 from ``j1``, ``i is 2`` from ``j2`` and ``i is 3`` from ``j3``.
 
