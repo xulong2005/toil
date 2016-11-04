@@ -449,6 +449,21 @@ class JobTest(ToilTest):
             else:
                 self.fail()
 
+    def testSiblingDAGConsistency(self):
+        """
+        Slightly more complex case. The stranded job's predecessors are siblings instead of
+        parent/child.
+        """
+        options = Job.Runner.getDefaultOptions(self._createTempDir() + '/jobStore')
+        options.clean = 'always'
+        i = Job.wrapJobFn(diamond)
+        with Toil(options) as toil:
+            try:
+                toil.start(i)
+            except Exception as e:
+                assert isinstance(e, FailedJobsException)
+            else:
+                self.fail()
 
 def fn1Test(string, outputFile):
     """
@@ -491,6 +506,16 @@ def parent(job):
     childJob.addChild(failingJob)
     failingJob.addChild(strandedJob)
 
+
+def diamond(job):
+    childJob = JobFunctionWrappingJob(child)
+    strandedJob = JobFunctionWrappingJob(child)
+    failingJob = JobFunctionWrappingJob(errorChild)
+
+    job.addChild(childJob)
+    job.addChild(failingJob)
+    childJob.addChild(strandedJob)
+    failingJob.addChild(strandedJob)
 
 def child(job):
     pass
