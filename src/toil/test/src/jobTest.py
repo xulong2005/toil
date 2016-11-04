@@ -432,8 +432,9 @@ class JobTest(ToilTest):
         with Toil(options) as toil:
             try:
                 toil.start(i)
-            except Exception as e:
-                assert isinstance(e, FailedJobsException)
+            except FailedJobsException:
+                # we expect this exception to be raised
+                pass
             else:
                 self.fail()
 
@@ -444,8 +445,9 @@ class JobTest(ToilTest):
         with Toil(options) as toil:
             try:
                 toil.start(i)
-            except Exception as e:
-                assert isinstance(e, FailedJobsException)
+            except FailedJobsException:
+                # we expect this exception to be raised
+                pass
             else:
                 self.fail()
 
@@ -460,8 +462,9 @@ class JobTest(ToilTest):
         with Toil(options) as toil:
             try:
                 toil.start(i)
-            except Exception as e:
-                assert isinstance(e, FailedJobsException)
+            except FailedJobsException:
+                # we expect this exception to be raised
+                pass
             else:
                 self.fail()
 
